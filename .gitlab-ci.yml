@@ -1,0 +1,64 @@
+# GitLab CI/CD pipeline configuration for Spring Boot Java project
+
+stages:
+  - build
+  - test
+  - deploy
+
+variables:
+  MAVEN_CLI_OPTS: "-s .m2/settings.xml --batch-mode --errors"
+  MAVEN_OPTS: "-DskipTests"  # Optional: skip tests for faster builds
+  DOCKER_IMAGE_NAME: "your-docker-image-name"  # Customize with your Docker image name
+  GITLAB_URL: "http://localhost:8000/root/fleetmanagementsystem.git"  # GitLab repository URL
+
+# Cache dependencies to avoid re-downloading them in every pipeline run
+cache:
+  paths:
+    - .m2/repository/
+
+# Before script to setup environment
+before_script:
+  - 'export JAVA_HOME=/usr/lib/jvm/java-11-openjdk'
+  - 'export PATH=$JAVA_HOME/bin:$PATH'
+  - 'java -version'
+  - 'mvn -version'
+
+# Build stage: Build the Spring Boot project using Maven
+build:
+  stage: build
+  image: maven:3.8.4-openjdk-11
+  script:
+    - mvn clean install $MAVEN_CLI_OPTS
+  artifacts:
+    paths:
+      - target/*.jar  # Store the built JAR file for later stages
+
+# Test stage: Run tests on the Spring Boot project
+test:
+  stage: test
+  image: maven:3.8.4-openjdk-11
+  script:
+    - mvn test $MAVEN_CLI_OPTS  # Run unit tests
+
+# Build Docker image for deployment (optional)
+build_docker_image:
+  stage: deploy
+  image: docker:20.10.7
+  services:
+    - docker:20.10.7-dind  # Docker in Docker for building images
+  script:
+    - docker build -t $DOCKER_IMAGE_NAME .  # Build the Docker image
+    - docker tag $DOCKER_IMAGE_NAME registry.example.com/$DOCKER_IMAGE_NAME  # Tag the image
+    - docker push registry.example.com/$DOCKER_IMAGE_NAME  # Push the image to Docker registry
+  only:
+    - master  # Trigger this job only on master branch
+
+# Optional: Deploy stage, to deploy to a server or cloud (e.g., AWS, Kubernetes)
+deploy:
+  stage: deploy
+  image: maven:3.8.4-openjdk-11
+  script:
+    # Example of deploying using Kubernetes
+    - kubectl apply -f k8s/deployment.yaml  # Assuming you have Kubernetes YAML files for deployment
+  only:
+    - master  # T
